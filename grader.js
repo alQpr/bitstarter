@@ -22,6 +22,8 @@ References:
 */
 
 var fs = require('fs');
+var http = require('http');
+var rest = require('restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
@@ -45,7 +47,53 @@ var loadChecks = function(checksfile) {
 };
 
 var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+
+/////////////////////////////edits inserted here/////////////////////////////////////////////////
+/* ///////////(still "pseudocode")/////////////////
+var write2file = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(response.message));
+        } else {
+            console.error("Wrote %s", indexfile);
+            fs.writeFileSync(indexfile, result);
+        }
+    };
+
+if(htmlfile is a url){rest.get(htmlfile).on('complete', write2file);}///////////still pseudocode
+
+//OR//
+var http = require('http');
+var fs = require('fs');
+if(htmlfile is a url){                                                          //////////still pseudocode
+var file = fs.createWriteStream("download.html");
+var request = http.get("http://qpr.ca", function(response) {response.pipe(file);});
+htmlfile="download.html";
+}
+
+*/
+////////////////////////////////////end of insert/////////////////////////////////////////////////////////
+
+if(htmlfile.substring(0, 7) == "http://"){
+var file = fs.createWriteStream("download2.html");
+//NB This starts out empty!!!!!
+//and we mustn't try to use it until it's been loaded
+var request = http.get(htmlfile,
+function(response) {response.pipe(file);}
+                       );
+//BUT!! mustn't try to use file until it's been loaded
+//(need to make the rest wait until response finished)
+// with something like
+//.onreturn(proceed());
+
+htmlfile="download.html";}
+else{
+htmlfile="index.html";
+proceed();}
+}
+var proceed=function(){
+console.log("htmlfile is "+htmlfile);
+
+$ = cheerioHtmlFile("download.html");//htmlfile);
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -64,7 +112,7 @@ var clone = function(fn) {
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html')//, clone(assertFileExists), HTMLFILE_DEFAULT)
         .parse(process.argv);
     var checkJson = checkHtmlFile(program.file, program.checks);
     var outJson = JSON.stringify(checkJson, null, 4);
