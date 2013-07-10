@@ -39,62 +39,76 @@ var assertFileExists = function(infile) {
 };
 
 var cheerioHtmlFile = function(htmlfile) {
-    return cheerio.load(fs.readFileSync(htmlfile));
+if(htmlfile.substring(0, 7) == "http://")
+{console.log("htmlfile is a url");
+ return cheerio.load(rest.get(htmlfile));}
+else
+{console.log("htmlfile is a local file");
+ return cheerio.load(fs.readFileSync(htmlfile));}
 };
 
 var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(htmlfile, checksfile) {
+var checkHtmlFile = function(htmlfile, checksfile)
+{
+if(htmlfile.substring(0, 7) == "http://") 
+  {download(htmlfile, check);}
+else if(htmlfile.substring(0, 7) == "shttp://")
+  {var doneHolder={done:false};
+var nameHolder={name:"index.html"};
+console.log("file to check is from "+htmlfile);
 
-/////////////////////////////edits inserted here/////////////////////////////////////////////////
-/* ///////////(still "pseudocode")/////////////////
-var write2file = function(result, response) {
-        if (result instanceof Error) {
-            console.error('Error: ' + util.format(response.message));
-        } else {
-            console.error("Wrote %s", indexfile);
-            fs.writeFileSync(indexfile, result);
-        }
-    };
-
-if(htmlfile is a url){rest.get(htmlfile).on('complete', write2file);}///////////still pseudocode
-
-//OR//
-var http = require('http');
-var fs = require('fs');
-if(htmlfile is a url){                                                          //////////still pseudocode
 var file = fs.createWriteStream("download.html");
-var request = http.get("http://qpr.ca", function(response) {response.pipe(file);});
-htmlfile="download.html";
+console.log("empty capture file created");
+
+//when the write is complete we'll act on the filename
+var action=function (err) 
+{if(err) console.log("file write error");//throw err;
+console.log('downoad is saved. Now checking the file');
+nameHolder.name="download.html";
+}  
+//writedata will follow completion of http get request 
+var writedata=function()    
+{ doneHolder.done=true;
+console.log("data obtained. Now writing to file");
+//fs.writeFile("download.html",data,action);
+} 
+var request = rest.get(htmlfile).on('complete', 
+//function(){console.log("complete!");});
+
+writedata);
+
+console.log("waiting for download and save of file");
+
+while(!doneHolder.done)
+{                     
+console.log("get request not completed yet");
+} 
+
+while(nameHolder.name!="download.html")
+{
+console.log("download.html not written yet");
 }
 
-*/
-////////////////////////////////////end of insert/////////////////////////////////////////////////////////
+console.log("checking "+nameHolder.name);
+return checkthefile(nameHolder.name,checksfile); 
+   }else{
 
-if(htmlfile.substring(0, 7) == "http://"){
-var file = fs.createWriteStream("download2.html");
-//NB This starts out empty!!!!!
-//and we mustn't try to use it until it's been loaded
-var request = http.get(htmlfile,
-function(response) {response.pipe(file);}
-                       );
-//BUT!! mustn't try to use file until it's been loaded
-//(need to make the rest wait until response finished)
-// with something like
-//.onreturn(proceed());
+console.log("checking "+htmlfile+" (a local file)"); 
+return checkthefile(htmlfile,checksfile);
+        }
+};
 
-htmlfile="download.html";}
-else{
-htmlfile="index.html";
-proceed();}
-}
-var proceed=function(){
-console.log("htmlfile is "+htmlfile);
 
-$ = cheerioHtmlFile("download.html");//htmlfile);
-    var checks = loadChecks(checksfile).sort();
+var checkthefile=function(htmlfile,checksfile){
+console.log("file passed to checker is "+htmlfile);
+
+
+var $ = cheerioHtmlFile(htmlfile);//filetocheck);
+
+   var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
         var present = $(checks[ii]).length > 0;
@@ -102,6 +116,53 @@ $ = cheerioHtmlFile("download.html");//htmlfile);
     }
     return out;
 };
+
+
+
+// downloads html from the internet
+// callback is called with two arguments: err, html
+// where err is null if there is no error
+function download(url, callback) {
+    var resp = rest.get(url);
+    resp.on('complete', function(result) {
+        if (result instanceof Error) {
+            // callback(result);
+            sys.puts('Error: ' + result.message);
+            this.retry(5000); // try again after 5 sec
+            return;
+        }
+        callback(null, result);
+    });
+}
+
+
+
+
+function check(err, html) {
+        if (err) {
+            console.log('Error getting html: ' + err);
+            process.exit(1);
+        }
+        var checks = loadChecks(program.checks);
+        var checkJson = checkHtml(html, checks);
+        var outJson = JSON.stringify(checkJson, null, 4);
+        console.log(outJson);
+    }
+
+
+// checks html
+function checkHtml(html, checks) {
+    $ = cheerio.load(html);
+    var out = {};
+    for(var ii in checks) {
+        var present = $(checks[ii]).length > 0;
+        out[checks[ii]] = present;
+    }
+    return out;
+}
+
+
+
 
 var clone = function(fn) {
     // Workaround for commander.js issue.
